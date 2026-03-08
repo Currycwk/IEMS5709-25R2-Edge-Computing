@@ -2,32 +2,41 @@ import torch
 import soundfile as sf
 from qwen_tts import Qwen3TTSModel
 
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
 
 print(f"Using device: {device}")
 print(f"Using dtype: {dtype}")
 
-# model = Qwen3TTSModel.from_pretrained(
-#     "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-#     device_map="cuda:0",
-#     dtype=torch.bfloat16,
-#     attn_implementation="flash_attention_2",
-# )
-
 model = Qwen3TTSModel.from_pretrained(
     "Qwen3-TTS-12Hz-0.6B-Base",
     dtype=dtype,
-    device_map=device
+    device_map=device,
 )
 
+# Reference audio: your own voice
 ref_audio = "resources/clone.wav"
-ref_text  = "When someone comes up and says something like, I am a God, everybody says, who does he think he is? I just told you who I thought I was. A God! I just told you, that's who I think I am."
+
+# Reference text: read from clone.txt
+with open("clone.txt", "r", encoding="utf-8") as f:
+    ref_text = f.read().strip()
+
+# Text to be generated (will also be saved to tts.txt)
+tts_text = (
+    "这是我在香港中文大学读书期间录制的一段测试语音，"
+    "用于完成 IEMS5709 课程的语音合成实验。"
+)
+
+with open("tts.txt", "w", encoding="utf-8") as f:
+    f.write(tts_text + "\n")
 
 wavs, sr = model.generate_voice_clone(
-    text="I lost the only girl in the world that know me best. I got the money and the fame, man, that don't mean shit. I got the Jesus on the chain, man, that don't mean shit. Cause when the Jesus pieces can't bring me peace",
-    language="English",
+    text=tts_text,
+    language="Chinese",
     ref_audio=ref_audio,
     ref_text=ref_text,
 )
-sf.write("output_voice_clone.wav", wavs[0], sr)
+
+sf.write("tts.wav", wavs[0], sr)
+

@@ -16,9 +16,15 @@ model = Qwen3ASRModel.from_pretrained(
 )
 
 results = model.transcribe(
-    audio="resources/asr_en.wav",
+    audio="resources/asr.wav",
     language=None, # set "English" to force the language
 )
 
-print(results[0].language)
-print(results[0].text)
+language = results[0].language
+text = results[0].text
+
+with open("asr.txt", "w", encoding="utf-8") as f:
+    f.write(f"{language}\n{text}\n")
+
+print(language)
+print(text)
