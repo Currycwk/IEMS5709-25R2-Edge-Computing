@@ -57,7 +57,7 @@ docker run \
     --max-num-batched-tokens 2048
 ```
 
-> **[2026-03-07] Note:** You may docker run uses `-d` (detached mode) so the container runs in the background. Before starting a new container, run `docker ps` to check if a vLLM container is already running by your groupmates. If so, your group can share the same container to save GPU memory.
+> **[2026-03-07] Note:** You may use `-d` (detached mode) to run the container in the background. Before starting a new container, run `docker ps` to check if a vLLM container is already running by your groupmates. If so, your group can share the same container to save GPU memory.
 
 Starting the vLLM server container will take a few minutes. You should be able to see the following output after the container is started successfully.
 ![vLLM Server Status](./images/start-vllm-container.png)
