@@ -3,6 +3,7 @@ Qwen3-ASR/
 Lab1/Qwen3-TTS-12Hz-0.6B-Base/
 Lab1/Qwen3-ASR-0.6B/
 Lab1/Qwen3-4B-quantized.w4a16/
+Lab1/output_voice_clone.wav
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

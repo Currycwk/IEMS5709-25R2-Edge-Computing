@@ -52,7 +52,7 @@ docker run \
   -v $PWD/Qwen3-4B-quantized.w4a16:/root/.cache/huggingface/Qwen3-4B-quantized.w4a16 \
   ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin \
   vllm serve /root/.cache/huggingface/Qwen3-4B-quantized.w4a16 \
-    --gpu-memory-utilization 0.35 \
+    --gpu-memory-utilization 0.5 \
     --max-model-len 4096 \
     --max-num-batched-tokens 2048
 ```
