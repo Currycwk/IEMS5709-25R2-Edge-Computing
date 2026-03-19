@@ -14,7 +14,7 @@ Run `eval_asr.py` script with your own audio clip and report the transcription r
 
 Run `eval_tts.py` script with your own voice. Raplace the reference audio and reference text and change the generate text. Submit your reference audio file as `clone.wav` and reference text as `clone.txt`. Also submit your generate text as `tts.txt` and the generated audio file as `tts.wav`.
 
-# Submission
+## Submission
 
 Please submit your code and results to Blackboard by uploading the following files:
 ```
