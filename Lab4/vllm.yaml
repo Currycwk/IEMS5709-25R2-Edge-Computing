@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm
+  template:
+    metadata:
+      labels:
+        app: vllm
+    spec:
+      # TODO: Add hostNetwork: true so vLLM binds directly to the node's network
+      #       interface (equivalent to `network_mode: host` in Docker Compose).
+      #       Without this, GPU memory access latency increases significantly.
+
+      containers:
+      - name: vllm
+        image: ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin
+        command:
+        - vllm
+        - serve
+        - /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
+        - --gpu-memory-utilization
+        - "0.50"
+        - --max-model-len
+        - "4096"
+        - --max-num-batched-tokens
+        - "2048"
+        resources:
+          limits:
+            # TODO: Request 1 GPU (equivalent to `runtime: nvidia` in Docker Compose).
+            #       Key: nvidia.com/gpu
+            #       Value: 1
+
+        volumeMounts:
+        - name: model
+          mountPath: /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
+        - name: shm
+          # TODO: Set mountPath to /dev/shm
+          #       (equivalent to `shm_size: "8g"` in Docker Compose)
+
+      volumes:
+      - name: model
+        hostPath:
+          # TODO: Set path to the model directory on the Jetson host:
+          #       /opt/models/Qwen3-4B-quantized.w4a16
+
+      - name: shm
+        # TODO: Use an emptyDir volume with medium: Memory and sizeLimit: 8Gi
+        #       This gives vLLM a shared memory space backed by RAM.
+        #
+        # Hint:
+        #   emptyDir:
+        #     medium: Memory
+        #     sizeLimit: ???

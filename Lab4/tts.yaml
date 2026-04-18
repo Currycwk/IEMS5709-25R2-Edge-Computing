@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tts
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tts
+  template:
+    metadata:
+      labels:
+        app: tts
+    spec:
+      containers:
+      - name: tts
+        image: dustynv/kokoro-tts:fastapi-r36.4.0-cu128-24.04
+        ports:
+        - containerPort: 8880
+        resources:
+          limits:
+            # TODO: Request 1 GPU (equivalent to `runtime: nvidia` in Docker Compose).
+            #       Key: nvidia.com/gpu
+            #       Value: 1
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tts
+spec:
+  type: ClusterIP
+  selector:
+    app: tts
+  ports:
+  - port: 8880
+    targetPort: 8880
+  # A ClusterIP Service makes this pod reachable inside the cluster at:
+  #   http://tts:8880
+  # Other pods (e.g. open-webui) use this DNS name to call the TTS API.

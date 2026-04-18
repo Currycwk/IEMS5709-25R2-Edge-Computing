@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: asr
+  template:
+    metadata:
+      labels:
+        app: asr
+    spec:
+      containers:
+      - name: asr
+        image: faster-whisper:fastapi
+        ports:
+        - containerPort: 5092
+        resources:
+          limits:
+            # TODO: Request 1 GPU (equivalent to `runtime: nvidia` in Docker Compose).
+            #       Key: nvidia.com/gpu
+            #       Value: 1
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: asr
+spec:
+  type: ClusterIP
+  selector:
+    app: asr
+  ports:
+  - port: 5092
+    targetPort: 5092
+  # A ClusterIP Service makes this pod reachable inside the cluster at:
+  #   http://asr:5092
+  # Other pods (e.g. open-webui) use this DNS name to call the ASR API.
