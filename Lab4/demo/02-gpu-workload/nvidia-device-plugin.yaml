@@ -1,17 +1,49 @@
-# NVIDIA Kubernetes Device Plugin — adapted for K3s
+# NVIDIA Kubernetes Device Plugin — adapted for K3s on Jetson (single iGPU).
 #
-# The kubelet device-plugin socket lives at /var/lib/kubelet/device-plugins
-# on this setup (the standard k8s path). Some older K3s documentation points
-# to /var/lib/rancher/k3s/agent/kubelet/device-plugins, which does NOT match
-# the kubelet running with the system containerd endpoint used by
-# setup-gpu-runtime.sh; using that wrong path makes the plugin loop on
-# "Could not register device plugin: context deadline exceeded" and the node
-# never advertises nvidia.com/gpu.
+# Two Jetson-specific adjustments vs. the upstream manifest:
+#
+# 1. Kubelet socket path
+#    The device-plugin socket lives at /var/lib/kubelet/device-plugins on this
+#    setup (the standard k8s path). Older K3s docs point to
+#    /var/lib/rancher/k3s/agent/kubelet/device-plugins which does NOT match the
+#    kubelet running with the system containerd endpoint used by
+#    setup-gpu-runtime.sh; using that wrong path makes the plugin loop on
+#    "Could not register device plugin: context deadline exceeded" and the node
+#    never advertises nvidia.com/gpu.
+#
+# 2. GPU time-slicing (1 iGPU -> N schedulable replicas)
+#    Jetson has a single integrated GPU but the Lab 4 stack (vllm + asr + tts)
+#    needs three pods that each request `nvidia.com/gpu: 1`. Without time-
+#    slicing the scheduler can only place ONE GPU pod and the others stay
+#    Pending with "Insufficient nvidia.com/gpu". Jetson's iGPU actually
+#    supports concurrent kernels (as Lab 3 shows in docker-compose), so we let
+#    the device plugin advertise the GPU 4 times. `failRequestsGreaterThanOne:
+#    false` keeps backward compatibility with pods that request a single GPU.
 #
 # Apply after K3s is running:
 #   kubectl apply -f nvidia-device-plugin.yaml
 #   kubectl -n kube-system rollout status daemonset/nvidia-device-plugin-daemonset
+#   # Node should then advertise capacity nvidia.com/gpu: 4
+#   kubectl get node -o 'jsonpath={.items[*].status.capacity.nvidia\.com/gpu}{"\n"}'
 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nvidia-device-plugin-config
+  namespace: kube-system
+data:
+  config.yaml: |
+    version: v1
+    flags:
+      migStrategy: none
+    sharing:
+      timeSlicing:
+        renameByDefault: false
+        failRequestsGreaterThanOne: false
+        resources:
+          - name: nvidia.com/gpu
+            replicas: 4
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -38,6 +70,7 @@ spec:
         name: nvidia-device-plugin-ctr
         args:
         - --fail-on-init-error=false
+        - --config-file=/etc/nvidia-device-plugin/config.yaml
         env:
         - name: PASS_DEVICE_SPECS
           value: "true"
@@ -50,7 +83,16 @@ spec:
         volumeMounts:
         - name: device-plugin
           mountPath: /var/lib/kubelet/device-plugins
+        - name: dp-config
+          mountPath: /etc/nvidia-device-plugin
+          readOnly: true
       volumes:
       - name: device-plugin
         hostPath:
           path: /var/lib/kubelet/device-plugins
+      - name: dp-config
+        configMap:
+          name: nvidia-device-plugin-config
+          items:
+          - key: config.yaml
+            path: config.yaml
