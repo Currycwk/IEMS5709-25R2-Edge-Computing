@@ -1,8 +1,12 @@
 # NVIDIA Kubernetes Device Plugin — adapted for K3s
 #
-# On standard K8s the kubelet socket is at /var/lib/kubelet/device-plugins.
-# K3s stores it at /var/lib/rancher/k3s/agent/kubelet/device-plugins.
-# The hostPath below maps that K3s-specific path into the container.
+# The kubelet device-plugin socket lives at /var/lib/kubelet/device-plugins
+# on this setup (the standard k8s path). Some older K3s documentation points
+# to /var/lib/rancher/k3s/agent/kubelet/device-plugins, which does NOT match
+# the kubelet running with the system containerd endpoint used by
+# setup-gpu-runtime.sh; using that wrong path makes the plugin loop on
+# "Could not register device plugin: context deadline exceeded" and the node
+# never advertises nvidia.com/gpu.
 #
 # Apply after K3s is running:
 #   kubectl apply -f nvidia-device-plugin.yaml
@@ -49,4 +53,4 @@ spec:
       volumes:
       - name: device-plugin
         hostPath:
-          path: /var/lib/rancher/k3s/agent/kubelet/device-plugins
+          path: /var/lib/kubelet/device-plugins
