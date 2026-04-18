@@ -1,9 +1,9 @@
-apiVersion: v1
-kind: ConfigMap
+apiVersion: v1 # The version of the Kubernetes API to use
+kind: ConfigMap # The type of Kubernetes object, used to store non-confidential data
 metadata:
-  name: hello-k3s-app
+  name: hello-k3s-app # The name of the ConfigMap
 data:
-  app.py: |
+  app.py: | # The key is 'app.py', and its value is a multiline string containing the Python script
     #!/usr/bin/env python3
     from http.server import HTTPServer, BaseHTTPRequestHandler
     import json, os

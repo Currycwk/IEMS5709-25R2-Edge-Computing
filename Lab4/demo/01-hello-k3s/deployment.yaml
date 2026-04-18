@@ -1,35 +1,35 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: apps/v1 # The version of the Kubernetes API to use
+kind: Deployment # The type of Kubernetes object, manages Pods and ReplicaSets
 metadata:
-  name: hello-k3s
+  name: hello-k3s-deployment # The name of the Deployment
   labels:
-    app: hello-k3s
+    app: hello-k3s # Labels applied to the Deployment itself
 spec:
-  replicas: 1
+  replicas: 1 # Number of desired Pod instances
   selector:
-    matchLabels:
+    matchLabels: # How the Deployment identifies the Pods it should manage
       app: hello-k3s
-  template:
+  template: # The template used to create new Pods
     metadata:
       labels:
-        app: hello-k3s
-    spec:
+        app: hello-k3s # Labels applied to the newly created Pods
+    spec: # Specification for the Pod's containers
       containers:
-      - name: hello
-        image: python:3.12-slim
-        command: ["python", "/app/app.py"]
+      - name: hello # Name of the container
+        image: python:3.12-slim # The container image to use
+        command: ["python", "/app/app.py"] # Command to run when the container starts
         ports:
-        - containerPort: 5000
+        - containerPort: 5000 # Port that the container exposes to the pod network
         volumeMounts:
-        - name: app-code
-          mountPath: /app
-        readinessProbe:
+        - name: app-code # Mounts the volume named 'app-code'
+          mountPath: /app # Directory path inside the container where the volume is mounted
+        readinessProbe: # Checks if the container is ready to accept HTTP traffic
           httpGet:
-            path: /
-            port: 5000
-          initialDelaySeconds: 3
-          periodSeconds: 5
-      volumes:
-      - name: app-code
+            path: / # HTTP endpoint to request for the check
+            port: 5000 # Port to connect to for the check
+          initialDelaySeconds: 3 # Wait 3 seconds before performing the first probe
+          periodSeconds: 5 # Perform the probe every 5 seconds
+      volumes: # Volumes that can be mounted by containers in the Pod
+      - name: app-code # Name of the volume
         configMap:
-          name: hello-k3s-app
+          name: hello-k3s-app # Mounts the data from ConfigMap named 'hello-k3s-app' as files

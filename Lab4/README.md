@@ -497,6 +497,24 @@ kubectl apply -f demo/01-hello-k3s/deployment.yaml
 kubectl apply -f demo/01-hello-k3s/service.yaml
 ```
 
+**How do these components connect?**
+
+```mermaid
+graph TD
+    Svc["Service (hello-k3s-service)"]
+    Deploy["Deployment (hello-k3s-deployment)"]
+    CM["ConfigMap (hello-k3s-app)"]
+    Pods["Pods with label app: hello-k3s"]
+    
+    Svc -- "Selector match" --> Pods
+    Deploy -- "Selector match" --> Pods
+    Deploy -. "Name reference" .-> CM
+```
+
+As illustrated above:
+- **Service** and **Deployment** do **not** directly connect to each other. Instead, they both identify the same **Pods** independently using a **Selector** (`app: hello-k3s`).
+- The **Deployment** finds and mounts the **ConfigMap** explicitly by its literal **Name** (`hello-k3s-app`).
+
 ### Step 3: Watch the pod start
 
 ```bash
@@ -514,7 +532,7 @@ kubectl logs -l app=hello-k3s
 
 ```bash
 curl http://localhost:30500 | jq
-# {"message": "Hello from K3s!", "pod": "hello-k3s-xxxx"}
+# {"message": "Hello from K3s!", "pod": "hello-k3s-deployment-xxxx"}
 ```
 
 From a remote machine (replace with your Jetson IP):
@@ -530,14 +548,14 @@ curl http://<jetson-ip>:30500
 kubectl describe configmap hello-k3s-app
 
 # What does the pod see on disk?
-kubectl exec -it deployment/hello-k3s -- ls /app
-kubectl exec -it deployment/hello-k3s -- cat /app/app.py
+kubectl exec -it deployment/hello-k3s-deployment -- ls /app
+kubectl exec -it deployment/hello-k3s-deployment -- cat /app/app.py
 
 # Scale to 2 replicas and watch different pod names appear in responses
-kubectl scale deployment hello-k3s --replicas=2
+kubectl scale deployment hello-k3s-deployment --replicas=2
 for i in $(seq 6); do curl -s http://localhost:30500; echo; done
 
-kubectl scale deployment hello-k3s --replicas=1
+kubectl scale deployment hello-k3s-deployment --replicas=1
 for i in $(seq 6); do curl -s http://localhost:30500; echo; done
 ```
 
