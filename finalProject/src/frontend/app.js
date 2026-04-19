@@ -343,7 +343,7 @@ createApp({
           <h2>Ask</h2>
           <textarea
             v-model.trim="question"
-            placeholder="请输入你的问题，例如：什么是 RAG？"
+            placeholder="请输入你的问题，例如：What is RAG?"
             @keydown.ctrl.enter.prevent="submitQuestion"
           ></textarea>
           <div class="button-row">

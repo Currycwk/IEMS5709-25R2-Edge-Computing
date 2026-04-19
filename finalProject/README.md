@@ -36,18 +36,6 @@
 
 ---
 
-## 方案可行性
-
-这个项目改成类似 Gomoku 的 Docker 结构是**可行的，而且更适合课程展示**。
-
-原因如下：
-
-1. **结构清晰**：根目录负责部署，`src/` 负责业务代码
-2. **便于容器化**：前端、后端、vLLM 可以统一由 `docker-compose.yaml` 管理
-3. **便于答辩讲解**：可以清楚说明“前端服务 + 后端服务 + 模型服务”三层关系
-4. **便于扩展**：后续可以替换 embedding 实现、增加 PDF 支持、增加多轮对话
-
----
 
 ## 整体架构
 
@@ -408,27 +396,7 @@ curl -s http://localhost:8000/v1/models
 bash stop_vllm.sh
 ```
 
-**Recommended vLLM service definition:**
 
-```yaml
-services:
-  vllm:
-    image: ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin
-    shm_size: "8g"
-    ulimits:
-      memlock: -1
-      stack: 67108864
-    runtime: nvidia
-    volumes:
-      - /opt/models/Qwen3-4B-quantized.w4a16:/root/.cache/huggingface/Qwen3-4B-quantized.w4a16
-    command: >
-      vllm serve /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
-        --host 0.0.0.0
-        --port 8000
-        --gpu-memory-utilization 0.40
-        --max-model-len 4096
-        --max-num-batched-tokens 2048
-```
 
 ---
 
@@ -471,62 +439,25 @@ http://localhost:8001/ui
 
 本项目推荐参考 `Lab3/docker-compose.yml` 的写法，把 **vllm + backend + frontend** 一起放入 compose 中统一管理。
 
-```yaml
-services:
-  vllm:
-    image: ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin
-    shm_size: "8g"
-    ulimits:
-      memlock: -1
-      stack: 67108864
-    runtime: nvidia
-    volumes:
-      - /opt/models/Qwen3-4B-quantized.w4a16:/root/.cache/huggingface/Qwen3-4B-quantized.w4a16
-    command: >
-      vllm serve /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
-        --host 0.0.0.0
-        --port 8000
-        --gpu-memory-utilization 0.40
-        --max-model-len 4096
-        --max-num-batched-tokens 2048
 
-  backend:
-    build:
-      context: ./src/backend
-      dockerfile: Dockerfile
-    ports:
-      - "8001:8001"
-    environment:
-      - QWEN_BASE_URL=http://vllm:8000/v1
-      - VECTOR_DB_DIR=/app/vector_db
-      - DATA_DIR=/app/data/raw
-    volumes:
-      - ./data:/app/data
-      - ./vector_db:/app/vector_db
-    depends_on:
-      - vllm
 
-  frontend:
-    build:
-      context: ./src/frontend
-      dockerfile: Dockerfile
-    ports:
-      - "9898:9898"
-    depends_on:
-      - backend
-```
-
-启动：
+启动（后台运行）：
 
 ```bash
 cd finalProject
-docker compose up --build
+docker compose up --build -d
 ```
 
 停止：
 
 ```bash
 docker compose down
+```
+
+重新启动某个服务：
+
+```bash
+docker compose restart backend
 ```
 
 ---
@@ -620,6 +551,8 @@ python -m pytest tests/ -v
 
 ## Recommended Next Steps
 
+当前已完成Phase1和Phase2
+
 ### Phase 1
 继续完成真实联调：
 - 启动 vLLM
@@ -660,10 +593,4 @@ python -m pytest tests/ -v
 
 **Frontend → Backend API → Retriever / Vector DB → Qwen3 → Frontend**
 
-从课程项目角度看，这种设计的优点是：
 
-- 架构更规范
-- 前后端职责明确
-- 便于 Docker 部署
-- 易于演示与答辩
-- 便于后续继续扩展
