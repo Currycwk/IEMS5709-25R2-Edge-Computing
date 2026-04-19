@@ -2,12 +2,12 @@
 
 ## Project Overview
 
-本项目在 `finalProject/` 中实现一个**基于 Docker 组织形式的本地 RAG 系统**，整体组织方式参考 `Project/Gomoku/README.md` 与 `Lab3/README.md`：
+本项目在 `finalProject/` 中实现一个**基于 Docker 组织形式的本地 RAG 系统**：
 
 - 根目录负责容器编排与模型启动脚本
 - `src/backend/` 负责后端 RAG 服务
 - `src/frontend/` 负责前端页面与交互逻辑
-- **Qwen3-4B** 按照 Lab3 的方式，通过 **vLLM 容器服务** 提供模型能力
+- **Qwen3-4B** 通过 **vLLM 容器服务** 提供模型能力
 - **BGE-M3** 作为 embedding 模型
 - **LangChain** 作为整体设计思路参考，用于组织 RAG 链路
 
@@ -18,6 +18,21 @@
 - 后端完成文档加载、切分、检索与回答生成
 - 后端通过 OpenAI-compatible API 调用本地 Qwen3
 - 前端展示答案与检索来源
+
+---
+
+## 项目效果
+
+当前项目已经实现一条可本地运行、可演示的 RAG 问答链路，具体效果如下：
+
+- 前端使用 Vue 3 重构，支持状态检查、索引构建和问答提交
+- 回答通过 SSE 逐 token 流式返回，页面可实时显示生成过程
+- Think 内容与正式回答分离展示，默认可折叠查看
+- 检索来源会以独立卡片展示，便于核对答案依据
+- 支持本地知识库构建与重建，并可在 Docker Compose 中一键启动前后端与模型服务
+- 已验证 BGE-M3 + FAISS 的可选检索链路，同时保留 simple vector store 作为轻量方案
+
+如果浏览器看不到最新效果，通常是缓存或容器未重建完成，强制刷新即可。
 
 ---
 
@@ -122,7 +137,8 @@ finalProject/
 
 - `HTML`
 - `CSS`
-- `Vanilla JavaScript`
+- `Vue 3`
+- `JavaScript`
 
 ### Port
 
@@ -132,9 +148,9 @@ finalProject/
 
 - 检查系统状态
 - 构建索引
-- 提交问题
-- 展示回答
-- 展示 sources
+- 提交问题并以流式方式展示回答
+- 展开 / 收起 Think 内容
+- 展示回答与 sources
 
 ---
 
@@ -182,8 +198,8 @@ finalProject/
 - 保留 overlap 以提升上下文连续性
 
 **Current Parameters:**
-- `chunk_size = 500`
-- `chunk_overlap = 100`
+- `chunk_size = 1200`
+- `chunk_overlap = 150`
 
 ---
 
@@ -207,12 +223,13 @@ README 保留 BGE-M3 作为正式方案；当前代码中的 `embedding_client.p
 - 支持相似度检索
 
 **Current Implementation:**
-- 本地 JSON 持久化
+- 本地 JSON 持久化的 simple vector store
+- 可选 FAISS 向量库后端
 - 余弦相似度检索
 
 **Future Options:**
 - `Chroma`
-- `FAISS`
+- 继续扩展更多向量库后端
 
 ---
 
@@ -325,13 +342,13 @@ README 保留 BGE-M3 作为正式方案；当前代码中的 `embedding_client.p
 
 前端当前实现为：提交问题后直接调用 `/api/chat`，并按 SSE 逐 token 渲染答案。
 
-如果浏览器仍然命中旧版脚本，请强制刷新页面或清理缓存。当前前端已通过版本化脚本地址加载：`/app.js?v=20260419`。
+如果浏览器仍然命中旧版脚本，请强制刷新页面或清理缓存。当前前端已通过版本化脚本地址加载：`/app.js?v=20260419-uifix-2`。
 
 当前流式链路已增加：
 
 - SSE `start/token/sources/done` 事件序列
 - 服务端 `no-cache` 与 `X-Accel-Buffering: no` 响应头，减少代理缓冲
-- 前端若未收到 token 会自动回退到非流式接口
+- 前端将 think 内容与正式回答分离显示，默认可折叠查看
 
 ### `GET /ui`
 
@@ -350,13 +367,13 @@ sequenceDiagram
     participant LLM as Qwen3-4B
 
     User->>Frontend: Input question
-    Frontend->>Backend: POST /api/chat
+    Frontend->>Backend: POST /api/chat (SSE)
     Backend->>Retriever: Retrieve relevant chunks
     Retriever-->>Backend: Return context
     Backend->>LLM: Generate answer with context
-    LLM-->>Backend: Return answer
-    Backend-->>Frontend: Return answer + sources
-    Frontend-->>User: Display final result
+    LLM-->>Backend: Stream tokens
+    Backend-->>Frontend: Return answer stream + sources
+    Frontend-->>User: Display final result and think panel
 ```
 
 ---

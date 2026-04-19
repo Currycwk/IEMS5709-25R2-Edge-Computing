@@ -27,7 +27,7 @@ class LLMClient:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.2,
-            "max_tokens": 300,
+            "max_tokens": 512,
         }
         try:
             response = httpx.post(
@@ -52,7 +52,7 @@ class LLMClient:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.2,
-            "max_tokens": 300,
+            "max_tokens": 512,
             "stream": True,
         }
 

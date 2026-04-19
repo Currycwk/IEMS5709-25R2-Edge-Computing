@@ -9,44 +9,8 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <div class="shell">
-    <header class="hero">
-      <p class="eyebrow">LangChain + Qwen3 + BGE-M3</p>
-      <h1>Local RAG Console</h1>
-      <p class="subtitle">在本地知识库上进行检索增强问答，查看答案与检索来源。</p>
-      <div class="status-row">
-        <button id="statusButton">检查系统状态</button>
-        <span id="statusText">等待检查</span>
-      </div>
-    </header>
-
-    <main class="grid">
-      <section class="panel question-panel">
-        <h2>Ask</h2>
-        <textarea id="questionInput" placeholder="请输入你的问题，例如：什么是 RAG？"></textarea>
-        <div class="button-row">
-          <button id="indexButton">构建索引</button>
-          <button id="askButton">提交问题</button>
-        </div>
-      </section>
-
-      <section class="panel answer-panel">
-        <h2>Answer</h2>
-        <pre id="answerOutput">等待提问...</pre>
-      </section>
-
-      <section class="panel source-panel">
-        <h2>Sources</h2>
-        <div id="sourceList">尚无检索结果。</div>
-      </section>
-    </main>
-  </div>
-  <script>
-    (function () {
-      var script = document.createElement('script');
-      script.src = '/app.js?v=' + Date.now();
-      document.body.appendChild(script);
-    })();
-  </script>
+  <div id="app" class="shell" v-cloak></div>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="/app.js?v=20260419-uifix-2"></script>
 </body>
 </html>

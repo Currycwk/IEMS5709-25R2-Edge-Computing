@@ -3,8 +3,8 @@ from loader import Document
 
 def split_documents(
     documents: list[Document],
-    chunk_size: int = 500,
-    chunk_overlap: int = 100,
+    chunk_size: int = 1200,
+    chunk_overlap: int = 150,
 ) -> list[Document]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
