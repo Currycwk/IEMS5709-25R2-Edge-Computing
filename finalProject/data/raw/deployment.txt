@@ -1,0 +1,3 @@
+Local deployment is useful in edge computing because it reduces dependency on external cloud APIs and improves privacy control.
+
+Docker Compose can be used to orchestrate the frontend, backend, and vLLM services for a complete local AI system.

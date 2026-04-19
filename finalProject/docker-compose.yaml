@@ -1,0 +1,47 @@
+version: '3.9'
+
+services:
+  vllm:
+    image: ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin
+    shm_size: "8g"
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    runtime: nvidia
+    volumes:
+      - /opt/models/Qwen3-4B-quantized.w4a16:/root/.cache/huggingface/Qwen3-4B-quantized.w4a16
+    command: >
+      vllm serve /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
+        --host 0.0.0.0
+        --port 8000
+        --gpu-memory-utilization 0.40
+        --max-model-len 4096
+        --max-num-batched-tokens 2048
+
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - QWEN_BASE_URL=http://vllm:8000/v1
+      - VECTOR_DB_DIR=/app/vector_db
+      - DATA_DIR=/app/data/raw
+      - BACKEND_HOST=0.0.0.0
+      - BACKEND_PORT=8001
+    volumes:
+      - ./data:/app/data
+      - ./vector_db:/app/vector_db
+    depends_on:
+      - vllm
+
+  frontend:
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+    ports:
+      - "9898:9898"
+    depends_on:
+      - backend
+
