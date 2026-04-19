@@ -10,25 +10,46 @@ services:
       - /opt/models/Qwen3-4B-quantized.w4a16:/root/.cache/huggingface/Qwen3-4B-quantized.w4a16
     command: >
       vllm serve /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
-        --gpu-memory-utilization 0.50
+        --host 0.0.0.0
+        --gpu-memory-utilization 0.40
         --max-model-len 4096
         --max-num-batched-tokens 2048
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     ports:
-      - "3000:8080"
+      - "3001:8080"
+    environment:
+      WEBUI_URL: http://localhost:3001
+      ENABLE_SIGNUP: "true"
+      OPENAI_API_BASE_URL: http://vllm:8000/v1
+      OPENAI_API_KEY: not-needed
+      AUDIO_STT_ENGINE: openai
+      AUDIO_STT_OPENAI_API_BASE_URL: http://asr:5092/v1
+      AUDIO_STT_OPENAI_API_KEY: not-needed
+      AUDIO_STT_MODEL: faster-whisper
+      AUDIO_TTS_ENGINE: openai
+      AUDIO_TTS_OPENAI_API_BASE_URL: http://tts:8880/v1
+      AUDIO_TTS_OPENAI_API_KEY: not-needed
+      AUDIO_TTS_VOICE: af_bella
+      AUDIO_TTS_MODEL: kokoro
     volumes:
-      - open-webui-data:/app/backend/data
-    # TODO: add depends_on so that open-webui starts after the backend services
+      - open-webui-data-3001:/app/backend/data
+    depends_on:
+      - vllm
+      - asr
+      - tts
 
   asr:
+    build:
+      context: ../Lab2/faster-whisper
+      dockerfile: Dockerfile
     image: faster-whisper:fastapi
-    # TODO: add runtime for GPU access
+    runtime: nvidia
 
   tts:
     image: dustynv/kokoro-tts:fastapi-r36.4.0-cu128-24.04
-    # TODO: add runtime for GPU access
+    runtime: nvidia
 
 volumes:
-  open-webui-data:
+  open-webui-data-3001:
