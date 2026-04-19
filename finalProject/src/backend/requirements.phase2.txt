@@ -1,0 +1,7 @@
+# Optional dependencies for phase-2 real retrieval pipeline
+# Install this file only when you want real embedding/vector backends.
+
+sentence-transformers>=3.0.0
+numpy>=1.24.0
+faiss-cpu>=1.8.0
+langchain-core>=0.3.0

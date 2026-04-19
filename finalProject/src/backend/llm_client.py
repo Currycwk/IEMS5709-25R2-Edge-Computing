@@ -1,3 +1,5 @@
+import json
+
 import httpx
 
 
@@ -14,7 +16,7 @@ class LLMClient:
         except httpx.HTTPError:
             return False
 
-    def answer(self, question: str, context: str) -> str:
+    def answer(self, prompt: str) -> str:
         payload = {
             "model": self.model,
             "messages": [
@@ -22,10 +24,7 @@ class LLMClient:
                     "role": "system",
                     "content": "你是一个基于本地知识库进行问答的助手。请严格依据上下文回答，不要编造事实。",
                 },
-                {
-                    "role": "user",
-                    "content": f"上下文：\n{context}\n\n问题：{question}",
-                },
+                {"role": "user", "content": prompt},
             ],
             "temperature": 0.2,
             "max_tokens": 300,
@@ -40,10 +39,54 @@ class LLMClient:
             data = response.json()
             return data["choices"][0]["message"]["content"].strip()
         except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
-            return self._fallback_answer(question, context)
+            return self._fallback_answer(prompt)
 
-    def _fallback_answer(self, question: str, context: str) -> str:
-        if not context.strip():
+    def stream_answer(self, prompt: str):
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "你是一个基于本地知识库进行问答的助手。请严格依据上下文回答，不要编造事实。",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+            "max_tokens": 300,
+            "stream": True,
+        }
+
+        try:
+            with httpx.stream(
+                "POST",
+                f"{self.base_url}/chat/completions",
+                json=payload,
+                timeout=self.timeout,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    if not line.startswith("data:"):
+                        continue
+
+                    data = line[len("data:"):].strip()
+                    if data == "[DONE]":
+                        break
+
+                    try:
+                        chunk = json.loads(data)
+                        delta = chunk["choices"][0].get("delta", {}).get("content", "")
+                    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError):
+                        delta = ""
+
+                    if delta:
+                        yield delta
+        except httpx.HTTPError:
+            yield self._fallback_answer(prompt)
+
+    def _fallback_answer(self, prompt: str) -> str:
+        if not prompt.strip():
             return "我无法从当前知识库中找到足够依据。"
-        preview = context.strip().replace("\n", " ")[:240]
-        return f"当前未连接到 Qwen3 服务，以下是与问题“{question}”最相关的知识库内容摘要：{preview}"
+        preview = prompt.strip().replace("\n", " ")[:240]
+        return f"当前未连接到 Qwen3 服务，以下是基于检索上下文的摘要：{preview}"

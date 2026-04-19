@@ -14,8 +14,8 @@ class DummyLLM:
     def health(self):
         return True
 
-    def answer(self, question: str, context: str) -> str:
-        return f"Answer for: {question}"
+    def answer(self, prompt: str) -> str:
+        return "Answer for: What is RAG?"
 
 
 def test_end_to_end_index_then_chat(tmp_path, monkeypatch):

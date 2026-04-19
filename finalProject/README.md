@@ -291,7 +291,7 @@ README 保留 BGE-M3 作为正式方案；当前代码中的 `embedding_client.p
 
 ### `POST /api/chat`
 
-用户提问并获取回答。
+用户提问并获取回答。当前默认返回流式 SSE 数据，前端会逐 token 展示答案。
 
 ```json
 // Request
@@ -311,6 +311,27 @@ README 保留 BGE-M3 作为正式方案；当前代码中的 `embedding_client.p
   ]
 }
 ```
+
+### `POST /api/chat/stream`
+
+用户提问并获取流式回答（SSE）。该接口作为 `/api/chat` 的兼容别名保留。
+
+ - 返回类型：`text/event-stream`
+ - 事件数据格式：
+   - `{"type":"start"}`：流式开始
+   - `{"type":"token","token":"..."}`：逐 token 输出
+   - `{"type":"sources","sources":[...]}`：检索来源
+   - `{"type":"done"}`：流式结束
+
+前端当前实现为：提交问题后直接调用 `/api/chat`，并按 SSE 逐 token 渲染答案。
+
+如果浏览器仍然命中旧版脚本，请强制刷新页面或清理缓存。当前前端已通过版本化脚本地址加载：`/app.js?v=20260419`。
+
+当前流式链路已增加：
+
+- SSE `start/token/sources/done` 事件序列
+- 服务端 `no-cache` 与 `X-Accel-Buffering: no` 响应头，减少代理缓冲
+- 前端若未收到 token 会自动回退到非流式接口
 
 ### `GET /ui`
 
@@ -502,7 +523,9 @@ docker compose down
 | `QWEN_BASE_URL` | `http://vllm:8000/v1` | Qwen3 API address inside docker compose |
 | `QWEN_MODEL` | `/root/.cache/huggingface/Qwen3-4B-quantized.w4a16` | Model name |
 | `EMBEDDING_MODEL_PATH` | `/opt/models/bge-m3` | Local BGE-M3 path |
+| `EMBEDDING_BACKEND` | `simple` | Embedding backend: `simple` or `bge-m3` |
 | `VECTOR_DB_DIR` | `./vector_db` | Vector DB directory |
+| `VECTOR_BACKEND` | `simple` | Vector backend: `simple` or `faiss` |
 | `DATA_DIR` | `./data/raw` | Knowledge base directory |
 | `TOP_K` | `3` | Number of retrieved chunks |
 | `BACKEND_HOST` | `0.0.0.0` | Backend host |
@@ -511,6 +534,27 @@ docker compose down
 | `VLLM_IMAGE` | `ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin` | vLLM container image |
 
 可以参考 `.env.example`。
+
+### Phase 2 Optional Dependencies
+
+当前后端已支持后端切换脚手架：
+
+- `EMBEDDING_BACKEND=bge-m3`：启用 `sentence-transformers` 的真实 embedding 路径
+- `VECTOR_BACKEND=faiss`：启用 FAISS 向量检索路径
+
+并已接入 LangChain Core 风格的 Prompt 组织层（`langchain_flow.py`）：
+
+- 若已安装 `langchain-core`：使用 `ChatPromptTemplate` 组织系统提示词与用户问题
+- 若未安装：自动回退到本地 native prompt 渲染
+
+默认值仍为 `simple`，保持第一阶段兼容。
+
+如需启用 Phase 2 真实实现，可额外安装：
+
+```bash
+cd finalProject/src/backend
+pip install -r requirements.phase2.txt
+```
 
 ---
 
@@ -571,6 +615,8 @@ python -m pytest tests/ -v
 - 真实 `BGE-M3` embedding
 - 真实 `LangChain` 组织链路
 - 真实 `Chroma` / `FAISS`
+- 把 /api/chat 改成流式输出（已新增 `/api/chat/stream`）
+- 前端支持 token-by-token 展示（已完成，含非流式回退）
 
 ### Phase 3
 增强交互与可展示性：

@@ -20,6 +20,83 @@ async function requestJson(path, options = {}) {
   return data;
 }
 
+async function streamChat(question) {
+  const response = await fetch(`${backendBase}/api/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'text/event-stream',
+    },
+    cache: 'no-store',
+    body: JSON.stringify({ question }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || `Request failed with status ${response.status}`);
+  }
+
+  if (!response.body) {
+    throw new Error('Streaming is not supported in this browser');
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buffer = '';
+
+  answerOutput.textContent = '';
+  sourceList.innerHTML = '正在检索...';
+  let receivedToken = false;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split('\n\n');
+    buffer = chunks.pop() || '';
+
+    for (const chunk of chunks) {
+      const dataLine = chunk
+        .split('\n')
+        .find((line) => line.startsWith('data:'));
+      if (!dataLine) {
+        continue;
+      }
+
+      const payloadText = dataLine.slice(5).trim();
+      if (!payloadText) {
+        continue;
+      }
+
+      try {
+        let payload;
+        try {
+          payload = JSON.parse(payloadText);
+        } catch (_) {
+          continue;
+        }
+        if (payload.type === 'token') {
+          receivedToken = true;
+          answerOutput.textContent += payload.token || '';
+        } else if (payload.type === 'sources') {
+          renderSources(payload.sources || []);
+        } else if (payload.type === 'error') {
+          throw new Error(payload.message || '流式响应失败');
+        }
+      } catch (_) {
+        // Ignore malformed stream chunks.
+      }
+    }
+  }
+
+  if (!receivedToken) {
+    throw new Error('未收到流式 token');
+  }
+}
+
 function renderSources(sources) {
   if (!sources || !sources.length) {
     sourceList.innerHTML = '尚无检索结果。';
@@ -66,14 +143,9 @@ askButton.addEventListener('click', async () => {
   answerOutput.textContent = '思考中...';
   sourceList.innerHTML = '正在检索...';
   try {
-    const result = await requestJson('/api/chat', {
-      method: 'POST',
-      body: JSON.stringify({ question }),
-    });
-    answerOutput.textContent = result.answer;
-    renderSources(result.sources);
+    await streamChat(question);
   } catch (error) {
-    answerOutput.textContent = `问答失败：${error.message}`;
+    answerOutput.textContent = `问答失败：${error.message || '流式请求失败'}`;
     sourceList.innerHTML = '无可展示的来源。';
   }
 });
