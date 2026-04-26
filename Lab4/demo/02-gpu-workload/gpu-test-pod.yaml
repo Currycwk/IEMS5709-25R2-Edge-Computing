@@ -1,0 +1,28 @@
+# GPU Verification Pod
+#
+# Runs nvidia-smi inside a Pod that requests 1 GPU.
+# If the pod completes successfully, GPU access in K3s is working.
+#
+# Usage:
+#   kubectl apply -f gpu-test-pod.yaml
+#   kubectl wait --for=condition=Succeeded pod/gpu-test --timeout=120s
+#   kubectl logs gpu-test
+#   kubectl delete pod gpu-test
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-test
+spec:
+  restartPolicy: Never
+  containers:
+  - name: nvidia-smi
+    image: ubuntu:22.04
+    command:
+    - /bin/sh
+    - -c
+    - |
+      nvidia-smi && echo "" && echo "==> GPU test passed!"
+    resources:
+      limits:
+        nvidia.com/gpu: 1

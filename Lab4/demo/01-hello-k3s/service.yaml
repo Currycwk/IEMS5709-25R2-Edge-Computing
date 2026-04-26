@@ -1,0 +1,12 @@
+apiVersion: v1 # The version of the Kubernetes API to use
+kind: Service # The type of Kubernetes object to create
+metadata:
+  name: hello-k3s-service # The name of the Service
+spec:
+  type: NodePort # Exposes the Service on each Node's IP at a static port (nodePort)
+  selector:
+    app: hello-k3s # Routes traffic to Pods matching the label 'app: hello-k3s'
+  ports:
+  - port: 5000        # ClusterIP port (used for in-cluster access)
+    targetPort: 5000  # Port the container listens on
+    nodePort: 30500   # External port on the node (30000-32767)
