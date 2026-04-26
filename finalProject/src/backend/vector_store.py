@@ -1,5 +1,4 @@
 import json
-import math
 from pathlib import Path
 
 from loader import Document
@@ -28,6 +27,11 @@ class SimpleVectorStore:
         self.persist_dir.mkdir(parents=True, exist_ok=True)
         self.index_path.write_text(json.dumps(self.entries, ensure_ascii=False, indent=2), encoding="utf-8")
 
+    def clear(self) -> None:
+        self.entries = []
+        if self.index_path.exists():
+            self.index_path.unlink()
+
     def load(self) -> None:
         if self.index_path.exists():
             self.entries = json.loads(self.index_path.read_text(encoding="utf-8"))
@@ -42,17 +46,35 @@ class SimpleVectorStore:
     def similarity_search(self, query: str, embedding_client, top_k: int = 3) -> list[dict]:
         if not self.entries:
             self.load()
+
         query_embedding = embedding_client.embed(query)
         scored = []
-        for entry in self.entries:
+        for idx, entry in enumerate(self.entries):
             score = cosine_similarity(query_embedding, entry.get("embedding", {}))
-            scored.append({
-                "page_content": entry["page_content"],
-                "metadata": entry["metadata"],
-                "score": score,
-            })
+            scored.append(
+                {
+                    "entry_id": idx,
+                    "page_content": entry["page_content"],
+                    "metadata": entry["metadata"],
+                    "score": score,
+                }
+            )
+
         scored.sort(key=lambda item: item["score"], reverse=True)
         return scored[:top_k]
+
+    def get_entry_by_id(self, entry_id: int) -> dict | None:
+        if not self.entries:
+            self.load()
+        if entry_id < 0 or entry_id >= len(self.entries):
+            return None
+        entry = self.entries[entry_id]
+        return {
+            "entry_id": entry_id,
+            "page_content": entry["page_content"],
+            "metadata": entry["metadata"],
+            "score": 0.0,
+        }
 
 
 class FaissVectorStore:
@@ -122,6 +144,15 @@ class FaissVectorStore:
             encoding="utf-8",
         )
 
+    def clear(self) -> None:
+        self.entries = []
+        self._index = None
+        self._dim = None
+        if self.index_path.exists():
+            self.index_path.unlink()
+        if self.meta_path.exists():
+            self.meta_path.unlink()
+
     def load(self) -> None:
         if not self.meta_path.exists() or not self.index_path.exists():
             self.entries = []
@@ -165,12 +196,26 @@ class FaissVectorStore:
             entry = self.entries[index]
             results.append(
                 {
+                    "entry_id": int(index),
                     "page_content": entry["page_content"],
                     "metadata": entry["metadata"],
                     "score": float(score),
                 }
             )
         return results
+
+    def get_entry_by_id(self, entry_id: int) -> dict | None:
+        if self._index is None:
+            self.load()
+        if entry_id < 0 or entry_id >= len(self.entries):
+            return None
+        entry = self.entries[entry_id]
+        return {
+            "entry_id": entry_id,
+            "page_content": entry["page_content"],
+            "metadata": entry["metadata"],
+            "score": 0.0,
+        }
 
 
 def create_vector_store(persist_dir: Path, backend: str = "simple"):

@@ -2,6 +2,7 @@ version: '3.9'
 
 services:
   vllm:
+    profiles: ["local-llm"]
     image: ghcr.io/nvidia-ai-iot/vllm:latest-jetson-orin
     shm_size: "8g"
     ulimits:
@@ -24,24 +25,29 @@ services:
       dockerfile: Dockerfile
     ports:
       - "8001:8001"
+    env_file:
+      - ./.env
     environment:
-      - QWEN_BASE_URL=http://vllm:8000/v1
+      - LLM_MODE=${LLM_MODE:-api}
+      - QWEN_BASE_URL=${QWEN_BASE_URL}
+      - QWEN_MODEL=${QWEN_MODEL}
+      - QWEN_API_KEY=${QWEN_API_KEY}
+      - QWEN_HEALTH_PATH=${QWEN_HEALTH_PATH:-/models}
       - VECTOR_DB_DIR=/app/vector_db
       - DATA_DIR=/app/data/raw
+      - TOP_K=${TOP_K:-3}
       - BACKEND_HOST=0.0.0.0
       - BACKEND_PORT=8001
     volumes:
       - ./data:/app/data
       - ./vector_db:/app/vector_db
-    depends_on:
-      - vllm
 
   frontend:
     build:
       context: ./src/frontend
       dockerfile: Dockerfile
     ports:
-      - "9898:9898"
+      - "${FRONTEND_PORT:-9898}:9898"
     depends_on:
       - backend
 

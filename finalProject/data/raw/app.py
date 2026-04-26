@@ -1,10 +1,7 @@
-import io
 import json
-import shutil
-import zipfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
@@ -12,10 +9,10 @@ from pydantic import BaseModel, Field
 
 from config import settings
 from loader import (
-    SUPPORTED_EXTENSIONS,
     list_external_code_projects,
     load_documents,
     load_external_code_project_documents,
+    load_self_code_documents,
 )
 from rag_chain import pipeline
 
@@ -62,7 +59,7 @@ def status():
 def corpora():
     return {
         "status": "ok",
-        "available": ["knowledge", "external_code"],
+        "available": ["knowledge", "self_code", "external_code"],
         "code_projects_dir": str(settings.code_projects_dir),
         "external_code_projects": list_external_code_projects(settings.code_projects_dir),
     }
@@ -82,6 +79,8 @@ def documents(corpus: str = "knowledge", code_project: str | None = None):
 
     if corpus == "knowledge":
         docs = load_documents(settings.data_dir)
+    elif corpus == "self_code":
+        docs = load_self_code_documents(Path(__file__).resolve().parents[2])
     elif corpus == "external_code":
         docs = load_external_code_project_documents(settings.code_projects_dir, project_name=code_project)
     else:
@@ -122,11 +121,8 @@ def _build_stream_response(
         yield "data: {\"type\": \"start\"}\n\n"
 
         try:
-            for event in token_stream:
-                if isinstance(event, dict):
-                    payload = event
-                else:
-                    payload = {"type": "token", "token": event}
+            for token in token_stream:
+                payload = {"type": "token", "token": token}
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
         except Exception as exc:
             error_payload = {"type": "error", "message": str(exc)}
@@ -176,149 +172,23 @@ def chat_stream(request: ChatRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/code/index/self")
+def build_self_code_index():
+    result = pipeline.build_index(corpus="self_code")
+    return {"status": "ok", "message": "Self code index built", **result}
+
+
 @app.post("/api/code/index/external/{project_name}")
 def build_external_code_index(project_name: str):
     result = pipeline.build_index(corpus="external_code", code_project=project_name)
     return {"status": "ok", "message": f"External code index built: {project_name}", **result}
 
 
-@app.post("/api/knowledge/upload")
-async def upload_knowledge_document(file: UploadFile = File(...)):
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-
-    filename = Path(file.filename).name.strip()
-    if not filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
-
-    suffix = Path(filename).suffix.lower()
-    if suffix not in SUPPORTED_EXTENSIONS:
-        allowed_types = ", ".join(sorted(SUPPORTED_EXTENSIONS))
-        raise HTTPException(status_code=400, detail=f"Only these file types are supported: {allowed_types}")
-
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-    target_path = settings.data_dir / filename
-    if target_path.exists():
-        raise HTTPException(status_code=409, detail=f"Knowledge document already exists: {filename}")
-
-    data = await file.read()
-    target_path.write_bytes(data)
-
-    result = pipeline.build_index(corpus="knowledge")
-    return {
-        "status": "ok",
-        "message": f"Uploaded knowledge document: {filename}",
-        "filename": filename,
-        "path": str(target_path),
-        **result,
-    }
-
-
-@app.delete("/api/knowledge/document")
-def delete_knowledge_document(path: str):
-    if not path.strip():
-        raise HTTPException(status_code=400, detail="path is required")
-
-    target_path = Path(path).expanduser()
-    try:
-        resolved_target = target_path.resolve(strict=True)
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="Knowledge document not found") from exc
-
-    resolved_data_dir = settings.data_dir.resolve()
-    try:
-        resolved_target.relative_to(resolved_data_dir)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Document path is outside knowledge base directory") from exc
-
-    if not resolved_target.is_file():
-        raise HTTPException(status_code=400, detail="Target path is not a file")
-
-    resolved_target.unlink()
-
-    cleared_active_index = False
-    if pipeline.active_corpus == "knowledge" and pipeline.vector_store.is_ready():
-        pipeline.clear_index()
-        cleared_active_index = True
-
-    return {
-        "status": "ok",
-        "message": f"Deleted knowledge document: {resolved_target.name}",
-        "path": str(resolved_target),
-        "cleared_active_index": cleared_active_index,
-        "remaining_documents": len(load_documents(settings.data_dir)),
-    }
-
-
-@app.post("/api/code/upload")
-async def upload_external_code_zip(
-    project_name: str = Form(...),
-    file: UploadFile = File(...),
-):
-    project_name = project_name.strip()
-    if not project_name:
-        raise HTTPException(status_code=400, detail="project_name is required")
-
-    if not file.filename or not file.filename.lower().endswith(".zip"):
-        raise HTTPException(status_code=400, detail="Only .zip files are supported")
-
-    target_dir = settings.code_projects_dir / project_name
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    data = await file.read()
-    try:
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            members = [m for m in zf.namelist() if m and not m.endswith("/")]
-            if not members:
-                raise HTTPException(status_code=400, detail="Zip is empty")
-
-            shutil.rmtree(target_dir, ignore_errors=True)
-            target_dir.mkdir(parents=True, exist_ok=True)
-
-            for member in members:
-                normalized = Path(member)
-                if normalized.is_absolute() or ".." in normalized.parts:
-                    continue
-                dest = target_dir / normalized
-                dest.parent.mkdir(parents=True, exist_ok=True)
-                with zf.open(member) as src, dest.open("wb") as out:
-                    out.write(src.read())
-    except zipfile.BadZipFile as exc:
-        raise HTTPException(status_code=400, detail="Invalid zip file") from exc
-
-    result = pipeline.build_index(corpus="external_code", code_project=project_name)
-    return {
-        "status": "ok",
-        "message": f"Uploaded and indexed external project: {project_name}",
-        "project_name": project_name,
-        **result,
-    }
-
-
-@app.delete("/api/code/external/{project_name}")
-def delete_external_code_project(project_name: str):
-    project_name = project_name.strip()
-    if not project_name:
-        raise HTTPException(status_code=400, detail="project_name is required")
-
-    target_dir = settings.code_projects_dir / project_name
-    if not target_dir.exists() or not target_dir.is_dir():
-        raise HTTPException(status_code=404, detail=f"External project not found: {project_name}")
-
-    shutil.rmtree(target_dir, ignore_errors=True)
-
-    cleared_active_index = False
-    if pipeline.active_corpus == "external_code" and pipeline.active_code_project == project_name:
-        pipeline.clear_index()
-        cleared_active_index = True
-
-    return {
-        "status": "ok",
-        "message": f"Deleted external project: {project_name}",
-        "project_name": project_name,
-        "cleared_active_index": cleared_active_index,
-        "remaining_projects": list_external_code_projects(settings.code_projects_dir),
-    }
+@app.post("/api/code/chat/self")
+def chat_self_code(request: ChatRequest):
+    if not request.question.strip():
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+    return _build_stream_response(request.question, top_k=request.top_k, corpus="self_code")
 
 
 @app.post("/api/code/chat/external/{project_name}")

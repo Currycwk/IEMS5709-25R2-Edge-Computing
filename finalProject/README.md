@@ -376,6 +376,54 @@ Qwen3 的连接配置参考 `Lab3/README.md`：
 
 也就是说，在本项目中，Qwen3 推荐继续作为一个独立的 `vllm` 服务运行，由后端通过 OpenAI-compatible API 访问。
 
+### LLM Mode 切换
+
+后端现在支持两种接法，前端和接口无需修改，只需要切换环境变量：
+
+1. `local`：原本方式，连接本地 / 容器内的 vLLM
+2. `api`：新增方式，连接外部 Qwen API 或任意 OpenAI-compatible API
+
+推荐使用以下环境变量：
+
+```env
+LLM_MODE=local
+QWEN_BASE_URL=http://vllm:8000/v1
+QWEN_MODEL=/root/.cache/huggingface/Qwen3-4B-quantized.w4a16
+QWEN_API_KEY=
+QWEN_HEALTH_PATH=/models
+```
+
+如果你要接外部 API，可以改成：
+
+```env
+LLM_MODE=api
+QWEN_BASE_URL=https://your-api-endpoint/v1
+QWEN_MODEL=qwen-plus
+QWEN_API_KEY=your_api_key
+QWEN_HEALTH_PATH=/models
+```
+
+说明：
+
+- `QWEN_BASE_URL` 需要指向 OpenAI-compatible 根路径，后端会自动请求：
+  - `GET {QWEN_BASE_URL}{QWEN_HEALTH_PATH}`
+  - `POST {QWEN_BASE_URL}/chat/completions`
+- `QWEN_API_KEY` 非空时，会自动通过 `Authorization: Bearer ...` 发送
+- `QWEN_HEALTH_PATH` 默认是 `/models`，如果你的 API 没有这个健康检查地址，可以按实际情况改掉
+
+- `TOP_K`：最终返回给 LLM 的 chunk 数量
+- `RETRIEVAL_FETCH_K`：初次向量检索候选数量（建议 >= TOP_K）
+- `RETRIEVAL_STRATEGY`：`hybrid` / `vector`
+  - `vector`：仅向量相似度
+  - `hybrid`：向量分 + 词项重叠分融合重排
+- `EXPAND_ADJACENT_CHUNKS`：是否补充相邻 chunk，提升上下文连续性
+
+并且文档加载已支持：
+
+- `.txt`
+- `.md`
+- `.pdf`（按页提取并清洗文本）
+
 ---
 
 ## Deployment
@@ -592,5 +640,198 @@ python -m pytest tests/ -v
 完整链路可以概括为：
 
 **Frontend → Backend API → Retriever / Vector DB → Qwen3 → Frontend**
+
+---
+
+## 快速开始（从环境配置到运行）
+
+### 0）创建并激活 conda 环境
+
+```bash
+conda create -n rag python=3.10 -y
+conda activate rag
+```
+
+### 1）安装后端依赖
+
+```bash
+cd ./src/backend
+pip install -r requirements.txt
+```
+
+### 2A）本地 vLLM 启动（local 模式，SSH / Linux bash）
+
+终端 A（backend）：
+
+```bash
+cd ./src/backend
+export LLM_MODE="local"
+export QWEN_BASE_URL="http://localhost:8000/v1"
+export QWEN_MODEL="/root/.cache/huggingface/Qwen3-4B-quantized.w4a16"
+export QWEN_API_KEY=""
+export QWEN_HEALTH_PATH="/models"
+python -m uvicorn app:app --host 0.0.0.0 --port 8001
+```
+
+终端 B（vLLM）：
+
+```bash
+cd .
+bash ./start_vllm.sh
+```
+
+终端 C（frontend）：
+
+```bash
+cd ./src/frontend
+python -m http.server 9898
+```
+
+浏览器访问：
+
+```text
+http://localhost:9898
+```
+
+### 2B）Qwen API 启动（api 模式，SSH / Linux bash）
+
+终端 A（backend）：
+
+```bash
+cd ./src/backend
+export LLM_MODE="api"
+export QWEN_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
+export QWEN_MODEL="qwen-plus"
+export QWEN_API_KEY="<YOUR_QWEN_API_KEY>"
+export QWEN_HEALTH_PATH="/models"
+python -m uvicorn app:app --host 0.0.0.0 --port 8001
+```
+
+终端 B（frontend）：
+
+```bash
+cd ./src/frontend
+python -m http.server 9898
+```
+
+浏览器访问：
+
+```text
+http://localhost:9898
+```
+
+### 3）首次使用步骤
+
+1. 点击 `检查系统状态`
+2. 点击 `构建索引`
+3. 在 `Ask` 区域输入问题并提交
+
+---
+
+## 已新增功能与作用说明
+
+### A）API 接入增强（保留本地 vLLM）
+
+- 新增可切换 LLM 模式：`local` / `api`
+- 新增基于 API Key 的 OpenAI-compatible 调用路径
+- 新增状态字段展示当前 LLM 的模式 / 地址 / 模型
+
+**作用：** 使用同一套前后端即可灵活切换本地模型服务与云端 API。
+
+### B）三个可见可用功能
+
+1. **Top-K 检索滑块**
+   - 可控制最终传给模型的检索片段数量。
+   - **作用：** 可按问题类型在“精准”与“覆盖”之间调节。
+
+2. **知识库文档浏览 / 预览**
+   - 前端可直接查看已加载文档与内容预览。
+   - **作用：** 提升可解释性，方便核对回答依据。
+
+3. **最近问答历史面板**
+   - 保存最近问答、来源、Top-K 等信息。
+   - **作用：** 便于结果对比、复用与演示。
+
+### C）RAG 实际质量增强
+
+1. **PDF 文档处理**
+   - 支持 `.pdf`（按页提取 + 文本清洗）。
+   - **作用：** 扩展知识库来源，适配真实资料场景。
+
+2. **句子边界感知切分**
+   - 切分时优先按句子/换行边界并保留 overlap。
+   - **作用：** 降低语义截断，提升检索与生成质量。
+
+3. **Hybrid 重排 + 相邻 Chunk 扩展**
+   - 先取候选（`RETRIEVAL_FETCH_K`），再融合向量分与词项重叠分重排。
+   - 可选补充同文档相邻 chunk，增强上下文连续性。
+   - **作用：** 提高相关性与答案完整度。
+
+---
+
+## 外部代码项目分析与上传（最新）
+
+### 目录约定
+
+外部代码项目统一放在：
+
+```text
+./data/code_projects/<project_name>/
+```
+
+例如：
+
+```text
+./data/code_projects/my_web_app/
+./data/code_projects/my_backend_service/
+```
+
+并在 `.env` 中确保：
+
+```env
+CODE_PROJECTS_DIR=./data/code_projects
+```
+
+### 前端使用方式
+
+1. 在页面中选择语料模式：`分析外部代码项目`
+2. 选择已有外部项目，或直接上传 zip
+3. 点击 `构建索引`
+4. 提问（例如：项目核心模块、后端接口、调用流程）
+
+### ZIP 上传接口（后端）
+
+接口：`POST /api/code/upload`
+
+- 请求类型：`multipart/form-data`
+- 字段：
+  - `project_name`：目标项目名
+  - `file`：zip 文件
+
+处理逻辑：
+
+- 自动解压到 `CODE_PROJECTS_DIR/project_name`
+- 自动进行安全路径校验（过滤非法路径）
+- 解压完成后自动构建该外部项目索引
+
+返回结果包含：
+
+- `project_name`
+- `documents`
+- `chunks`
+- `corpus` / `code_project`
+
+### 与旧模式的差异
+
+当前代码分析已聚焦到 **外部项目分析**，移除了“分析本项目代码”入口，避免模式混淆，流程更清晰：
+
+- 知识库问答：`knowledge`
+- 外部代码问答：`external_code`
+
+
+
+
+
+
 
 
