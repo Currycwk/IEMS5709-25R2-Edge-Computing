@@ -15,6 +15,7 @@ spec:
       # TODO: Add hostNetwork: true so vLLM binds directly to the node's network
       #       interface (equivalent to `network_mode: host` in Docker Compose).
       #       Without this, GPU memory access latency increases significantly.
+      hostNetwork: true
 
       containers:
       - name: vllm
@@ -24,7 +25,7 @@ spec:
         - serve
         - /root/.cache/huggingface/Qwen3-4B-quantized.w4a16
         - --gpu-memory-utilization
-        - "0.50"
+        - "0.40"
         - --max-model-len
         - "4096"
         - --max-num-batched-tokens
@@ -34,6 +35,7 @@ spec:
             # TODO: Request 1 GPU (equivalent to `runtime: nvidia` in Docker Compose).
             #       Key: nvidia.com/gpu
             #       Value: 1
+            nvidia.com/gpu: 1
 
         volumeMounts:
         - name: model
@@ -41,12 +43,14 @@ spec:
         - name: shm
           # TODO: Set mountPath to /dev/shm
           #       (equivalent to `shm_size: "8g"` in Docker Compose)
+          mountPath: /dev/shm
 
       volumes:
       - name: model
         hostPath:
           # TODO: Set path to the model directory on the Jetson host:
           #       /opt/models/Qwen3-4B-quantized.w4a16
+          path: /opt/models/Qwen3-4B-quantized.w4a16
 
       - name: shm
         # TODO: Use an emptyDir volume with medium: Memory and sizeLimit: 8Gi
@@ -56,3 +60,6 @@ spec:
         #   emptyDir:
         #     medium: Memory
         #     sizeLimit: ???
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Gi

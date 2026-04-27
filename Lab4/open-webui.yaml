@@ -9,6 +9,7 @@ spec:
     requests:
       # TODO: Set storage size to 2Gi
       #       (equivalent to the named volume `open-webui-data` in Docker Compose)
+      storage: 2Gi
 
 ---
 apiVersion: apps/v1
@@ -34,12 +35,14 @@ spec:
         - name: data
           # TODO: Set mountPath to /app/backend/data
           #       This is where Open WebUI stores its SQLite database and uploads.
+          mountPath: /app/backend/data
 
       volumes:
       - name: data
         persistentVolumeClaim:
           # TODO: Set claimName to open-webui-data
           #       This connects the Deployment to the PVC declared above.
+          claimName: open-webui-data
 
 ---
 apiVersion: v1
@@ -49,6 +52,7 @@ metadata:
 spec:
   # TODO: Set type to NodePort so the Web UI is reachable from outside the cluster
   #       (equivalent to `ports: "3000:8080"` in Docker Compose).
+  type: NodePort
 
   selector:
     app: open-webui
@@ -57,3 +61,4 @@ spec:
     targetPort: 8080
     # TODO: Set nodePort to 30000
     #       After applying, access Open WebUI at http://<jetson-ip>:30000
+    nodePort: 30000

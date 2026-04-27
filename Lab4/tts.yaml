@@ -22,6 +22,7 @@ spec:
             # TODO: Request 1 GPU (equivalent to `runtime: nvidia` in Docker Compose).
             #       Key: nvidia.com/gpu
             #       Value: 1
+            nvidia.com/gpu: 1
 
 ---
 apiVersion: v1
